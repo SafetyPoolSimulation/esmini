@@ -44,6 +44,14 @@ namespace scenarioengine
         {
             setSpeed_ = setSpeed;
         }
+        void SetTimeGap(double setTimeGap)
+        {
+            timeGap_ = setTimeGap;
+        }
+        void SetLateralDist(double setLateralDist)
+        {
+            lateralDist_ = setLateralDist;
+        }
 
     private:
         vehicle::Vehicle vehicle_;

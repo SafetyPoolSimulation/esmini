@@ -795,7 +795,8 @@ int SwarmTrafficAction::despawn(double simTime)
     {
         Object* vehicle = entities_->GetObjectById(infoPtr->vehicleID);
 
-        if (vehicle->IsOffRoad() || vehicle->IsEndOfRoad())
+        //if (vehicle->IsOffRoad() || vehicle->IsEndOfRoad())
+        if (vehicle->IsOffRoad())
         {
             deleteVehicle = true;
         }

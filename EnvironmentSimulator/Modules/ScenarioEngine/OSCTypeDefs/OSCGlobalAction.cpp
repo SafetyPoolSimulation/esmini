@@ -22,6 +22,7 @@
 #include <sstream>
 #include "VehiclePool.hpp"
 #include "ControllerACC.hpp"
+#include "ControllerALKS_R157SM.hpp"
 #include "ScenarioReader.hpp"
 #include "ScenarioEngine.hpp"
 
@@ -696,8 +697,8 @@ void SwarmTrafficAction::spawn(Solutions sols, int replace, double simTime)
                 continue;  // distance = speed * 2 seconds
 
             Controller::InitArgs args;
-            args.name            = "Swarm ACC controller";
-            args.type            = CONTROLLER_ACC_TYPE_NAME;
+            args.name            = "Swarm ALKS controller";
+            args.type            = CONTROLLER_ALKS_R157SM_TYPE_NAME;
             args.scenario_engine = scenario_engine_;
             args.gateway         = gateway_;
             args.parameters      = 0;
@@ -710,12 +711,14 @@ void SwarmTrafficAction::spawn(Solutions sols, int replace, double simTime)
             property.value_ = std::to_string(velocity_);
             args.properties->property_.push_back(property);
 #endif
-            Controller* acc = InstantiateControllerACC(&args);
+            //Controller* acc = InstantiateControllerACC(&args);
+            Controller* alks = InstantiateControllerALKS_R157SM(&args);
 
 #if 1  // This is another way of setting the ACC setSpeed property
-            (static_cast<ControllerACC*>(acc))->SetSetSpeed(velocity_);
+            //(static_cast<ControllerACC*>(acc))->SetSetSpeed(velocity_);
 #endif
-            reader_->AddController(acc);
+            //reader_->AddController(acc);
+            reader_->AddController(alks);
 
             // Pick random model from vehicle catalog
             Vehicle* vehicle_tmp = vehicle_pool_.GetRandomVehicle();
@@ -756,9 +759,13 @@ void SwarmTrafficAction::spawn(Solutions sols, int replace, double simTime)
 
             v->AlignRearAxlePosition();
 
-            vehicle->AssignController(acc);
-            acc->LinkObject(vehicle);
-            acc->Activate({ControlActivationMode::ON, ControlActivationMode::OFF, ControlActivationMode::OFF, ControlActivationMode::OFF});
+            //vehicle->AssignController(acc);
+            //acc->LinkObject(vehicle);
+            //acc->Activate({ControlActivationMode::ON, ControlActivationMode::OFF, ControlActivationMode::OFF, ControlActivationMode::OFF});
+
+            vehicle->AssignController(alks);
+            alks->LinkObject(vehicle);
+            alks->Activate({ControlActivationMode::ON, ControlActivationMode::ON, ControlActivationMode::OFF, ControlActivationMode::OFF});
 
             SpawnInfo sInfo = {
                 id,                    // Vehicle ID

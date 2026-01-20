@@ -331,6 +331,11 @@ namespace scenarioengine
         class ReferenceDriver : Model
         {
         public:
+            void SetVehicle(Vehicle* vehicle)
+            {
+                veh_ = vehicle;
+            }
+
             enum class CutInPerceptionDelayMode
             {
                 DIST,

@@ -16,6 +16,7 @@
 #include "Controller.hpp"
 #include "Entities.hpp"
 #include "vehicle.hpp"
+#include "ControllerALKS_R157SM.hpp"
 
 #define CONTROLLER_ACC_TYPE_NAME "ACCController"
 
@@ -53,6 +54,21 @@ namespace scenarioengine
             lateralDist_ = setLateralDist;
         }
 
+        //void SetAEBS_TTC(double ttc)
+        //{
+        //    aeb_ttc_critical_ = ttc;
+        //}
+        //void SetAEBS_MaxDecel(double decel)
+        //{
+        //    aeb_max_decel_ = decel;
+        //}
+        //void SetAEBS_Available(bool avail)
+        //{
+        //    aeb_available_ = avail;
+        //}
+
+        void LinkObject(Object* object);
+
     private:
         vehicle::Vehicle vehicle_;
         bool             active_;
@@ -63,6 +79,12 @@ namespace scenarioengine
         bool             setSpeedSet_;
         bool             virtual_;
     };
+
+    // AEBS parameters
+    inline ControllerALKS_R157SM::ReferenceDriver aeb_driver_;
+    inline double aeb_ttc_critical_ = 5.0;         
+    inline double aeb_max_decel_    = 8.3385;   
+    inline bool aeb_available_    = true;  
 
     Controller* InstantiateControllerACC(void* args);
 }  // namespace scenarioengine

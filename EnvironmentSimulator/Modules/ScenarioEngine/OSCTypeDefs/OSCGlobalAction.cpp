@@ -714,6 +714,7 @@ void SwarmTrafficAction::spawn(Solutions sols, int replace, double simTime)
 
 #if 1  // This is another way of setting the ACC setSpeed property
             (static_cast<ControllerACC*>(acc))->SetSetSpeed(velocity_);
+            (static_cast<ControllerACC*>(acc))->SetTimeGap(5.0);
 #endif
             reader_->AddController(acc);
 

@@ -81,50 +81,30 @@ void ControllerACC::InitPostPlayer()
     // player_->AddObjectSensor(object_, 4.0, 0.0, 0.5, 0.0, 1.0, 50.0, 1.2, 100);
 }
 
-void ControllerACC::LinkObject(Object* object)
-{
-    if (!object)
-        return;
-
-    if (object->type_ != Object::Type::VEHICLE)
-    {
-        LOG_ERROR("Cannot assign ACC controller to a non vehicle object {}", object->GetName());
-        return;
-    }
-
-    Controller::LinkObject(object);
-
-    Vehicle* egoVeh = static_cast<Vehicle*>(object);
-    acc_aeb_driver_.SetVehicle(egoVeh);
-
-    acc_aeb_driver_.aeb_.ttc_critical_aeb_ = aeb_ttc_critical_;
-    acc_aeb_driver_.aeb_.max_dec_          = aeb_max_decel_;
-    acc_aeb_driver_.aeb_.available_        = aeb_available_;
-}
-
 void ControllerACC::Step(double timeStep)
 {
-    LOG_INFO("[ACC] Step start, currentSpeed = {:.2f}", currentSpeed_);
-
-    double       minGapLength       = LARGE_NUMBER;
+    double minGapLength = LARGE_NUMBER;
+    // double minSpeedDiff = 0.0; // TODO: Commented out because it is not used
     int          minObjIndex        = -1;
-    const double minDist            = 3.0;
+    const double minDist            = 3.0;  // minimum distance to keep to lead vehicle
     const double accelerationFactor = 0.7;
 
     // First check if speed has been set from somewhere else (another action or controller), respect it and update setSpeed
     if (virtual_)
     {
         currentSpeed_ = object_->GetSpeed();
-        LOG_INFO("[ACC] Virtual mode, currentSpeed set to {:.2f}", currentSpeed_);
     }
-    else if (abs(object_->GetSpeed() - currentSpeed_) > 1e-3)
+    else if (
+        // mode_ == ControlOperationMode::MODE_ADDITIVE &&
+        abs(object_->GetSpeed() - currentSpeed_) > 1e-3)
     {
-        LOG_INFO("[ACC] New setspeed detected: {:.2f}", setSpeed_);
+        LOG_INFO("New setspeed: {:5.2f}", setSpeed_);
         setSpeed_ = object_->GetSpeed();
     }
 
-    double lookaheadDist = MAX(50.0, 2 * minDist - pow(currentSpeed_, 2) / -object_->GetMaxDeceleration());
-
+    // Lookahead distance is at least 50m or twice the distance required to stop
+    // https://www.symbolab.com/solver/equation-calculator/s%5Cleft(t%5Cright)%3D2%5Cleft(m%2Bvt%2B%5Cfrac%7B1%7D%7B2%7Dat%5E%7B2%7D%5Cright)%2C%20t%3D%5Cfrac%7B-v%7D%7Ba%7D
+    double lookaheadDist = MAX(50.0, 2 * minDist - pow(currentSpeed_, 2) / -object_->GetMaxDeceleration());  // (m)
     for (size_t i = 0; i < entities_->object_.size(); i++)
     {
         Object* pivot_obj = entities_->object_[i];
@@ -133,20 +113,23 @@ void ControllerACC::Step(double timeStep)
             continue;
         }
 
+        // Measure longitudinal distance to all vehicles, don't utilize costly freespace option, instead measure ref point to ref point
         roadmanager::PositionDiff diff;
-        if (object_->pos_.Delta(&pivot_obj->pos_, diff, false, lookaheadDist))
+        if (object_->pos_.Delta(&pivot_obj->pos_, diff, false, lookaheadDist) == true)  // look only double timeGap ahead
         {
+            // path exists between position objects
+
+            // adjust longitudinal dist wrt bounding boxes
             double adjustedGapLength = diff.ds;
             double dHeading          = GetAbsAngleDifference(object_->pos_.GetH(), pivot_obj->pos_.GetH());
-
-            if (dHeading < M_PI_2)
+            if (dHeading < M_PI_2)  // objects are pointing roughly in the same direction
             {
                 adjustedGapLength -=
                     (static_cast<double>(object_->boundingbox_.dimensions_.length_) / 2.0 + static_cast<double>(object_->boundingbox_.center_.x_)) +
                     (static_cast<double>(pivot_obj->boundingbox_.dimensions_.length_) / 2.0 -
                      static_cast<double>(pivot_obj->boundingbox_.center_.x_));
             }
-            else
+            else  // objects are pointing roughly in the opposite direction
             {
                 adjustedGapLength -=
                     (static_cast<double>(object_->boundingbox_.dimensions_.length_) / 2.0 + static_cast<double>(object_->boundingbox_.center_.x_)) +
@@ -154,113 +137,80 @@ void ControllerACC::Step(double timeStep)
                      static_cast<double>(pivot_obj->boundingbox_.center_.x_));
             }
 
+            // dLaneId == 0 indicates there is linked path between object lanes, i.e. no lane changes needed
             if (diff.dLaneId == 0 && adjustedGapLength > 0 && adjustedGapLength < minGapLength && abs(diff.dt) < lateralDist_)
             {
                 minGapLength = adjustedGapLength;
-                minObjIndex  = static_cast<int>(i);
-                LOG_INFO("[ACC] Lead candidate found at index {}: gapLength = {:.2f}", i, minGapLength);
+                // minSpeedDiff = currentSpeed_ - pivot_obj->GetSpeed();
+                minObjIndex = static_cast<int>(i);  // TODO: size_t to int
             }
         }
 
-        double x_local, y_local;
-        object_->FreeSpaceDistance(pivot_obj, &y_local, &x_local);
-
-        if (static_cast<unsigned int>(minObjIndex) != i && x_local > 0 &&
-            x_local <
-                1.0 + static_cast<double>(pivot_obj->boundingbox_.dimensions_.length_) + 0.5 * MAX(0.0, currentSpeed_ - pivot_obj->GetSpeed()) &&
-            y_local < 0.2 && y_local > -0.5)
+        // Also check for really close entities in front
+        if (static_cast<unsigned int>(minObjIndex) != i)
         {
-            minGapLength = x_local;
-            minObjIndex  = static_cast<int>(i);
-            LOG_INFO("[ACC] Close object detected at index {}: x_local = {:.2f}", i, x_local);
+            double x_local, y_local;
+            object_->FreeSpaceDistance(pivot_obj, &y_local, &x_local);
+
+            if (x_local > 0 &&
+                x_local <
+                    1.0 + static_cast<double>(pivot_obj->boundingbox_.dimensions_.length_) + 0.5 * MAX(0.0, currentSpeed_ - pivot_obj->GetSpeed()) &&
+                y_local < 0.2 && y_local > -0.5)  // yield some more for right hand traffic
+            {
+                minGapLength = x_local;
+                // minSpeedDiff = currentSpeed_ - pivot_obj->GetSpeed();
+                minObjIndex = static_cast<int>(i);
+            }
         }
     }
 
     double acc = 0.0;
-
     if (minObjIndex > -1)
     {
-        Object* lead = entities_->object_[static_cast<unsigned int>(minObjIndex)];
-        if (!lead)
+        if (minGapLength < 1)
         {
-            LOG_WARN("[ACC] Lead object pointer is NULL!");
+            currentSpeed_ = 0.0;
         }
         else
         {
-            LOG_INFO("[ACC] Lead vehicle {} at index {}", lead->GetName(), minObjIndex);
+            // Follow distance = minimum distance + timeGap_ seconds
+            double speedForTimeGap = MAX(currentSpeed_, entities_->object_[static_cast<unsigned int>(minObjIndex)]->GetSpeed());
+            double followDist      = minDist + timeGap_ * fabs(speedForTimeGap);  // (m)
+            double dist            = minGapLength - followDist;
+            double distFactor      = MIN(1.0, dist / followDist);
 
-            // --- AEBS integration ---
-            ControllerALKS_R157SM::Model::ObjectInfo obj_info;
-            obj_info.obj = lead;
+            double dvMin = currentSpeed_ - MIN(setSpeed_, entities_->object_[static_cast<unsigned int>(minObjIndex)]->GetSpeed());
+            double dvSet = currentSpeed_ - setSpeed_;
 
-            double relSpeed = currentSpeed_ - lead->GetSpeed();
-            if (fabs(relSpeed) < 1e-6)
-            {
-                LOG_WARN("[ACC] relSpeed very small ({:.6f}), clamping to 1e-6 to avoid division by zero", relSpeed);
-                relSpeed = 1e-6;
-            }
+            acc = 2.5 * distFactor - distFactor * dvSet - (1 - distFactor) * dvMin;  // weighted combination of relative distance and speed
+            acc = CLAMP(acc, -object_->GetMaxDeceleration(), object_->GetMaxAcceleration());
 
-            obj_info.ttc = minGapLength / relSpeed;
-            LOG_INFO("[ACC] AEBS update: TTC = {:.2f}, lead speed = {:.2f}, currentSpeed = {:.2f}", obj_info.ttc, lead->GetSpeed(), currentSpeed_);
+            currentSpeed_ += acc * timeStep;
 
-            try
-            {
-                acc_aeb_driver_.UpdateAEB(static_cast<Vehicle*>(object_), &obj_info);
-            }
-            catch (...)
-            {
-                LOG_ERROR("[ACC] Crash occurred in acc_aeb_driver_.UpdateAEB!");
-                throw;
-            }
-
-            if (acc_aeb_driver_.aeb_.active_)
-            {
-                double aebDec = -acc_aeb_driver_.aeb_.max_dec_;
-                currentSpeed_ = std::max(0.0, currentSpeed_ + aebDec * timeStep);
-                LOG_INFO("[ACC] AEBS ACTIVE! Deceleration {:.2f}, currentSpeed = {:.2f}", aebDec, currentSpeed_);
-            }
-
-            if (minGapLength < 1)
-            {
-                currentSpeed_ = 0.0;
-            }
-            else
-            {
-                // Follow distance = minimum distance + timeGap_ seconds
-                //double speedForTimeGap = MAX(currentSpeed_, lead->GetSpeed());
-                //double followDist      = minDist + timeGap_ * fabs(speedForTimeGap);  // (m)
-                //double dist            = minGapLength - followDist;
-                //double distFactor      = MIN(1.0, dist / followDist);
-
-                //double dvMin = currentSpeed_ - MIN(setSpeed_, lead->GetSpeed());
-                //double dvSet = currentSpeed_ - setSpeed_;
-
-                //acc = 2.5 * distFactor - distFactor * dvSet - (1 - distFactor) * dvMin;  // weighted combination
-                //acc = CLAMP(acc, -object_->GetMaxDeceleration(), object_->GetMaxAcceleration());
-
-                //currentSpeed_ += acc * timeStep;
-                //currentSpeed_ = MIN(MAX(0.0, currentSpeed_), setSpeed_);
-            }
-
-            object_->SetSensorPosition(lead->pos_.GetX(), lead->pos_.GetY(), lead->pos_.GetZ());
+            // ensure positiove speed and not exceeding setSpeed
+            currentSpeed_ = MIN(MAX(0.0, currentSpeed_), setSpeed_);
         }
+
+        object_->SetSensorPosition(entities_->object_[static_cast<unsigned int>(minObjIndex)]->pos_.GetX(),
+                                   entities_->object_[static_cast<unsigned int>(minObjIndex)]->pos_.GetY(),
+                                   entities_->object_[static_cast<unsigned int>(minObjIndex)]->pos_.GetZ());
     }
     else
     {
-        LOG_INFO("[ACC] No lead vehicle detected.");
-        // no lead vehicle adjustment
-        //acc             = (setSpeed_ - currentSpeed_) * accelerationFactor * object_->GetMaxAcceleration();
-        //acc             = CLAMP(acc, -object_->GetMaxDeceleration(), accelerationFactor * object_->GetMaxAcceleration());
-        //double tmpSpeed = currentSpeed_ + acc * timeStep;
+        // no lead vehicle to adapt to, adjust according to setSpeed
+        acc             = (setSpeed_ - currentSpeed_) * accelerationFactor * object_->GetMaxAcceleration();
+        acc             = CLAMP(acc, -object_->GetMaxDeceleration(), accelerationFactor * object_->GetMaxAcceleration());
+        double tmpSpeed = currentSpeed_ + acc * timeStep;
 
-        //if (abs(tmpSpeed - setSpeed_) > abs(currentSpeed_ - setSpeed_))
-        //{
-        //    currentSpeed_ = setSpeed_;
-        //}
-        //else
-        //{
-        //    currentSpeed_ = tmpSpeed;
-        //}
+        if (abs(tmpSpeed - setSpeed_) > abs(currentSpeed_ - setSpeed_))
+        {
+            // passed target speed
+            currentSpeed_ = setSpeed_;
+        }
+        else
+        {
+            currentSpeed_ = tmpSpeed;
+        }
 
         object_->SetSensorPosition(object_->pos_.GetX(), object_->pos_.GetY(), object_->pos_.GetZ());
     }
@@ -283,10 +233,7 @@ void ControllerACC::Step(double timeStep)
     }
 
     Controller::Step(timeStep);
-
-    LOG_INFO("[ACC] Step end, currentSpeed = {:.2f}", currentSpeed_);
 }
-
 
 int ControllerACC::Activate(const ControlActivationMode (&mode)[static_cast<unsigned int>(ControlDomains::COUNT)])
 {

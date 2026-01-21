@@ -14,7 +14,7 @@
  * This controller simulates a simple Automated Emergency Braking System
  */
 
-#include "ControllerAEBS.h"
+#include "ControllerAEBS.hpp"
 #include "CommonMini.hpp"
 #include "Entities.hpp"
 #include "ScenarioGateway.hpp"
@@ -37,6 +37,7 @@ ControllerAEBS::ControllerAEBS(InitArgs* args)
     deceleration_(8.3385),
     available_(true),
     setSpeed_(0),
+    lateralDist_(5.0),
     currentSpeed_(0),
     setSpeedSet_(false),
     virtual_(false)
@@ -159,18 +160,6 @@ void ControllerAEBS::Step(double timeStep)
             minObjIndex  = static_cast<int>(i);
             LOG_INFO("[AEBS] Close object detected at index {}: x_local = {:.2f}", i, x_local);
         }
-    }
-
-    double x_local, y_local;
-    object_->FreeSpaceDistance(pivot_obj, &y_local, &x_local);
-
-    if (static_cast<unsigned int>(minObjIndex) != i && x_local > 0 &&
-        x_local < 1.0 + static_cast<double>(pivot_obj->boundingbox_.dimensions_.length_) + 0.5 * MAX(0.0, currentSpeed_ - pivot_obj->GetSpeed()) &&
-        y_local < 0.2 && y_local > -0.5)
-    {
-        minGapLength = x_local;
-        minObjIndex  = static_cast<int>(i);
-        LOG_INFO("[AEBS] Close object detected at index {}: x_local = {:.2f}", i, x_local);
     }
 
     double acc = 0.0;

@@ -44,17 +44,18 @@ namespace scenarioengine
         void ReportKeyEvent(int key, bool down);
 
     private:
+        ControllerALKS_R157SM::ReferenceDriver aeb_driver_;  // obtain ReferenceDriver to get AEB functionality
+
         bool    active_;
         double  ttc_;
         double  deceleration_;
         bool    available_;
         double  setSpeed_;
+        double  lateralDist_;
         double  currentSpeed_;
         bool    setSpeedSet_;
         bool    virtual_;
     };
-
-    inline ControllerALKS_R157SM::ReferenceDriver aeb_driver_; // obtain ReferenceDriver to get AEB functionality
 
     Controller* InstantiateControllerAEBS(void* args);
 }

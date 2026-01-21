@@ -11,10 +11,10 @@
  */
 
 /*
- * This controller simulates a simple Adaptive Cruise Control
+ * This controller simulates a simple Automated Emergency Braking System
  */
 
-#include "ControllerACC.hpp"
+#include "ControllerAEBS.h"
 #include "CommonMini.hpp"
 #include "Entities.hpp"
 #include "ScenarioGateway.hpp"
@@ -23,103 +23,88 @@
 
 using namespace scenarioengine;
 
-Controller* scenarioengine::InstantiateControllerACC(void* args)
+Controller* scenarioengine::InstantiateControllerAEBS(void* args)
 {
     Controller::InitArgs* initArgs = static_cast<Controller::InitArgs*>(args);
 
-    return new ControllerACC(initArgs);
+    return new ControllerAEBS(initArgs);
 }
 
-ControllerACC::ControllerACC(InitArgs* args)
+ControllerAEBS::ControllerAEBS(InitArgs* args)
     : Controller(args),
-      active_(false),
-      timeGap_(1.5),
-      setSpeed_(0),
-      lateralDist_(5.0),
-      currentSpeed_(0),
-      setSpeedSet_(false),
-      virtual_(false)
+    active_(false),
+    ttc_(1.4),
+    deceleration_(8.3385),
+    available_(true),
+    setSpeed_(0),
+    currentSpeed_(0),
+    setSpeedSet_(false),
+    virtual_(false)
 {
     operating_domains_ = static_cast<unsigned int>(ControlDomainMasks::DOMAIN_MASK_LONG);
 
-    if (args && args->properties && args->properties->ValueExists("timeGap"))
+    if (args && args->properties && args->properties->ValueExists("AEBTTC"))
     {
-        timeGap_ = strtod(args->properties->GetValueStr("timeGap"));
+        ttc_ = strtod(args->properties->GetValueStr("AEBTTC"));
     }
-    if (args && args->properties && args->properties->ValueExists("setSpeed"))
+    if (args && args->properties && args->properties->ValueExists("AEBDeceleration"))
     {
-        setSpeed_    = strtod(args->properties->GetValueStr("setSpeed"));
-        setSpeedSet_ = true;
+        deceleration_ = strtod(args->properties->GetValueStr("AEBDeceleration"));
     }
-    if (args && args->properties && args->properties->ValueExists("lateralDist"))
+    if (args && args->properties && args->properties->ValueExists("AEBAvailable"))
     {
-        lateralDist_ = strtod(args->properties->GetValueStr("lateralDist"));
-    }
-    if (args && args->properties && !args->properties->ValueExists("mode"))
-    {
-        // Default mode for this controller is additive
-        // which will use speed set by other actions as setSpeed
-        // in override mode setSpeed is set explicitly (if missing
-        // the current speed when controller is activated will be
-        // used as setSpeed)
-        mode_ = ControlOperationMode::MODE_ADDITIVE;
-    }
-    if (args && args->properties && args->properties->ValueExists("virtual"))
-    {
-        virtual_ = args->properties->GetValueStr("virtual") == "true" ? true : false;
+        available_ = args->properties->GetValueStr("AEBAvailable") == "true" ? true : false;
     }
 }
 
-void ControllerACC::Init()
+void ControllerAEBS::Init()
 {
     Controller::Init();
 }
 
-void ControllerACC::InitPostPlayer()
+void ControllerAEBS::InitPostPlayer()
 {
     // Uncomment line below to enable example how to add sensors. Press 'r' to visualize sensor frustum.
     // player_->AddObjectSensor(object_, 4.0, 0.0, 0.5, 0.0, 1.0, 50.0, 1.2, 100);
 }
 
-void ControllerACC::LinkObject(Object* object)
+void ControllerAEBS::LinkObject(Object* object)
 {
     if (!object)
         return;
 
     if (object->type_ != Object::Type::VEHICLE)
     {
-        LOG_ERROR("Cannot assign ACC controller to a non vehicle object {}", object->GetName());
+        LOG_ERROR("Cannot assign AEBS controller to a non vehicle object {}", object->GetName());
         return;
     }
 
     Controller::LinkObject(object);
 
+    // Link aeb_driver_ from ALKS_R157SM to Ego and set params
     Vehicle* egoVeh = static_cast<Vehicle*>(object);
-    acc_aeb_driver_.SetVehicle(egoVeh);
-
-    acc_aeb_driver_.aeb_.ttc_critical_aeb_ = aeb_ttc_critical_;
-    acc_aeb_driver_.aeb_.max_dec_          = aeb_max_decel_;
-    acc_aeb_driver_.aeb_.available_        = aeb_available_;
+    aeb_driver_.SetVehicle(egoVeh);
+    aeb_driver_.aeb_.ttc_critical_aeb_ = ttc_;
+    aeb_driver_.aeb_.max_dec_          = deceleration_;
+    aeb_driver_.aeb_.available_        = available_;
 }
 
-void ControllerACC::Step(double timeStep)
+void ControllerAEBS::Step(double timeStep)
 {
-    LOG_INFO("[ACC] Step start, currentSpeed = {:.2f}", currentSpeed_);
-
-    double       minGapLength       = LARGE_NUMBER;
-    int          minObjIndex        = -1;
-    const double minDist            = 3.0;
-    const double accelerationFactor = 0.7;
+    // ACC params
+    double minGapLength = LARGE_NUMBER;
+    int minObjIndex = -1;
+    const double minDist = 3.0;
 
     // First check if speed has been set from somewhere else (another action or controller), respect it and update setSpeed
     if (virtual_)
     {
         currentSpeed_ = object_->GetSpeed();
-        LOG_INFO("[ACC] Virtual mode, currentSpeed set to {:.2f}", currentSpeed_);
+        LOG_INFO("[AEBS] Virtual mode, currentSpeed set to {:.2f}", currentSpeed_);
     }
     else if (abs(object_->GetSpeed() - currentSpeed_) > 1e-3)
     {
-        LOG_INFO("[ACC] New setspeed detected: {:.2f}", setSpeed_);
+        LOG_INFO("[AEBS] New setspeed detected: {:.2f}", setSpeed_);
         setSpeed_ = object_->GetSpeed();
     }
 
@@ -158,7 +143,7 @@ void ControllerACC::Step(double timeStep)
             {
                 minGapLength = adjustedGapLength;
                 minObjIndex  = static_cast<int>(i);
-                LOG_INFO("[ACC] Lead candidate found at index {}: gapLength = {:.2f}", i, minGapLength);
+                LOG_INFO("[AEBS] Lead candidate found at index {}: gapLength = {:.2f}", i, minGapLength);
             }
         }
 
@@ -172,8 +157,20 @@ void ControllerACC::Step(double timeStep)
         {
             minGapLength = x_local;
             minObjIndex  = static_cast<int>(i);
-            LOG_INFO("[ACC] Close object detected at index {}: x_local = {:.2f}", i, x_local);
+            LOG_INFO("[AEBS] Close object detected at index {}: x_local = {:.2f}", i, x_local);
         }
+    }
+
+    double x_local, y_local;
+    object_->FreeSpaceDistance(pivot_obj, &y_local, &x_local);
+
+    if (static_cast<unsigned int>(minObjIndex) != i && x_local > 0 &&
+        x_local < 1.0 + static_cast<double>(pivot_obj->boundingbox_.dimensions_.length_) + 0.5 * MAX(0.0, currentSpeed_ - pivot_obj->GetSpeed()) &&
+        y_local < 0.2 && y_local > -0.5)
+    {
+        minGapLength = x_local;
+        minObjIndex  = static_cast<int>(i);
+        LOG_INFO("[AEBS] Close object detected at index {}: x_local = {:.2f}", i, x_local);
     }
 
     double acc = 0.0;
@@ -183,11 +180,11 @@ void ControllerACC::Step(double timeStep)
         Object* lead = entities_->object_[static_cast<unsigned int>(minObjIndex)];
         if (!lead)
         {
-            LOG_WARN("[ACC] Lead object pointer is NULL!");
+            LOG_WARN("[AEBS] Lead object pointer is NULL!");
         }
         else
         {
-            LOG_INFO("[ACC] Lead vehicle {} at index {}", lead->GetName(), minObjIndex);
+            LOG_INFO("[AEBS] Lead vehicle {} at index {}", lead->GetName(), minObjIndex);
 
             // --- AEBS integration ---
             ControllerALKS_R157SM::Model::ObjectInfo obj_info;
@@ -196,50 +193,33 @@ void ControllerACC::Step(double timeStep)
             double relSpeed = currentSpeed_ - lead->GetSpeed();
             if (fabs(relSpeed) < 1e-6)
             {
-                LOG_WARN("[ACC] relSpeed very small ({:.6f}), clamping to 1e-6 to avoid division by zero", relSpeed);
+                LOG_WARN("[AEBS] relSpeed very small ({:.6f}), clamping to 1e-6 to avoid division by zero", relSpeed);
                 relSpeed = 1e-6;
             }
 
             obj_info.ttc = minGapLength / relSpeed;
-            LOG_INFO("[ACC] AEBS update: TTC = {:.2f}, lead speed = {:.2f}, currentSpeed = {:.2f}", obj_info.ttc, lead->GetSpeed(), currentSpeed_);
+            LOG_INFO("[AEBS] AEBS update: TTC = {:.2f}, lead speed = {:.2f}, currentSpeed = {:.2f}", obj_info.ttc, lead->GetSpeed(), currentSpeed_);
 
             try
             {
-                acc_aeb_driver_.UpdateAEB(static_cast<Vehicle*>(object_), &obj_info);
+                aeb_driver_.UpdateAEB(static_cast<Vehicle*>(object_), &obj_info);
             }
             catch (...)
             {
-                LOG_ERROR("[ACC] Crash occurred in acc_aeb_driver_.UpdateAEB!");
+                LOG_ERROR("[AEBS] Crash occurred in aeb_driver_.UpdateAEB!");
                 throw;
             }
 
-            if (acc_aeb_driver_.aeb_.active_)
+            if (aeb_driver_.aeb_.active_)
             {
-                double aebDec = -acc_aeb_driver_.aeb_.max_dec_;
+                double aebDec = -aeb_driver_.aeb_.max_dec_;
                 currentSpeed_ = std::max(0.0, currentSpeed_ + aebDec * timeStep);
-                LOG_INFO("[ACC] AEBS ACTIVE! Deceleration {:.2f}, currentSpeed = {:.2f}", aebDec, currentSpeed_);
+                LOG_INFO("[AEBS] AEBS ACTIVE! Deceleration {:.2f}, currentSpeed = {:.2f}", aebDec, currentSpeed_);
             }
 
             if (minGapLength < 1)
             {
                 currentSpeed_ = 0.0;
-            }
-            else
-            {
-                // Follow distance = minimum distance + timeGap_ seconds
-                //double speedForTimeGap = MAX(currentSpeed_, lead->GetSpeed());
-                //double followDist      = minDist + timeGap_ * fabs(speedForTimeGap);  // (m)
-                //double dist            = minGapLength - followDist;
-                //double distFactor      = MIN(1.0, dist / followDist);
-
-                //double dvMin = currentSpeed_ - MIN(setSpeed_, lead->GetSpeed());
-                //double dvSet = currentSpeed_ - setSpeed_;
-
-                //acc = 2.5 * distFactor - distFactor * dvSet - (1 - distFactor) * dvMin;  // weighted combination
-                //acc = CLAMP(acc, -object_->GetMaxDeceleration(), object_->GetMaxAcceleration());
-
-                //currentSpeed_ += acc * timeStep;
-                //currentSpeed_ = MIN(MAX(0.0, currentSpeed_), setSpeed_);
             }
 
             object_->SetSensorPosition(lead->pos_.GetX(), lead->pos_.GetY(), lead->pos_.GetZ());
@@ -247,20 +227,7 @@ void ControllerACC::Step(double timeStep)
     }
     else
     {
-        LOG_INFO("[ACC] No lead vehicle detected.");
-        // no lead vehicle adjustment
-        //acc             = (setSpeed_ - currentSpeed_) * accelerationFactor * object_->GetMaxAcceleration();
-        //acc             = CLAMP(acc, -object_->GetMaxDeceleration(), accelerationFactor * object_->GetMaxAcceleration());
-        //double tmpSpeed = currentSpeed_ + acc * timeStep;
-
-        //if (abs(tmpSpeed - setSpeed_) > abs(currentSpeed_ - setSpeed_))
-        //{
-        //    currentSpeed_ = setSpeed_;
-        //}
-        //else
-        //{
-        //    currentSpeed_ = tmpSpeed;
-        //}
+        LOG_INFO("[AEBS] No lead vehicle detected.");
 
         object_->SetSensorPosition(object_->pos_.GetX(), object_->pos_.GetY(), object_->pos_.GetZ());
     }
@@ -284,11 +251,11 @@ void ControllerACC::Step(double timeStep)
 
     Controller::Step(timeStep);
 
-    LOG_INFO("[ACC] Step end, currentSpeed = {:.2f}", currentSpeed_);
+    LOG_INFO("[AEBS] Step end, currentSpeed = {:.2f}", currentSpeed_);
 }
 
 
-int ControllerACC::Activate(const ControlActivationMode (&mode)[static_cast<unsigned int>(ControlDomains::COUNT)])
+int ControllerAEBS::Activate(const ControlActivationMode(&mode)[static_cast<unsigned int>(ControlDomains::COUNT)])
 {
     currentSpeed_ = object_->GetSpeed();
     if (mode_ == ControlOperationMode::MODE_ADDITIVE || setSpeedSet_ == false)
@@ -312,7 +279,7 @@ int ControllerACC::Activate(const ControlActivationMode (&mode)[static_cast<unsi
     return 0;
 }
 
-void ControllerACC::ReportKeyEvent(int key, bool down)
+void ControllerAEBS::ReportKeyEvent(int key, bool down)
 {
     (void)key;
     (void)down;

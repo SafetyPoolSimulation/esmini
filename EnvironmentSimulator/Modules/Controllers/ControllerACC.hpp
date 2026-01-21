@@ -81,7 +81,7 @@ namespace scenarioengine
     };
 
     // AEBS parameters
-    inline ControllerALKS_R157SM::ReferenceDriver aeb_driver_;
+    inline ControllerALKS_R157SM::ReferenceDriver acc_aeb_driver_;
     inline double aeb_ttc_critical_ = 5.0;         
     inline double aeb_max_decel_    = 8.3385;   
     inline bool aeb_available_    = true;  

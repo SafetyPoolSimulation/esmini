@@ -23,6 +23,7 @@
 #include "ControllerExternal.hpp"
 #include "ControllerRel2Abs.hpp"
 #include "ControllerACC.hpp"
+#include "ControllerAEBS.hpp"
 #include "ControllerNaturalDriver.hpp"
 #include "ControllerALKS.hpp"
 #include "ControllerUDPDriver.hpp"
@@ -103,6 +104,7 @@ void ScenarioReader::LoadControllers()
     RegisterController(CONTROLLER_EXTERNAL_TYPE_NAME, InstantiateControllerExternal);
     RegisterController(CONTROLLER_REL2ABS_TYPE_NAME, InstantiateControllerRel2Abs);
     RegisterController(CONTROLLER_ACC_TYPE_NAME, InstantiateControllerACC);
+    RegisterController(CONTROLLER_AEBS_TYPE_NAME, InstantiateControllerAEBS);
     RegisterController(CONTROLLER_NATURAL_DRIVER_TYPE_NAME, InstantiateNaturalDriver);
     RegisterController(CONTROLLER_ALKS_TYPE_NAME, InstantiateControllerALKS);
     RegisterController(CONTROLLER_UDP_DRIVER_TYPE_NAME, InstantiateControllerUDPDriver);

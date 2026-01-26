@@ -674,24 +674,6 @@ void SwarmTrafficAction::spawn(Solutions sols, int replace, double simTime)
                 laneID = Lane->GetId();
             }
 
-            // Check vehicle can spawn in a valid lane
-            if (inf.road->GetRule() == roadmanager::Road::RoadRule::LEFT_HAND_TRAFFIC)
-            {
-                if (laneID <= 0)  // only (+) lane IDs for LHT
-                    continue;
-            }
-            else if (inf.road->GetRule() == roadmanager::Road::RoadRule::RIGHT_HAND_TRAFFIC)
-            {
-                if (laneID >= 0)  // only (-) lane IDs for RHT
-                    continue;
-            }
-            else
-            {
-                // Road rule unknown then default to LHT
-                if (laneID <= 0)  // only (+) lane IDs for LHT
-                    continue;
-            }
-
             if (!ensureDistance(inf.pos, laneID, MIN(MAX(40.0, velocity_ * 2.0), 0.7 * semiMajorAxis_)))
                 continue;  // distance = speed * 2 seconds
 
@@ -728,20 +710,7 @@ void SwarmTrafficAction::spawn(Solutions sols, int replace, double simTime)
             Vehicle* vehicle = new Vehicle(*vehicle_tmp);
             vehicle->pos_.SetLanePos(inf.pos.GetTrackId(), laneID, inf.pos.GetS(), 0.0);
 
-            // Set swarm traffic direction based on RHT or LHT
-            if (inf.road->GetRule() == roadmanager::Road::RoadRule::RIGHT_HAND_TRAFFIC)
-            {
-                vehicle->pos_.SetHeadingRelativeRoadDirection(laneID < 0 ? 0.0 : M_PI);
-            }
-            else if (inf.road->GetRule() == roadmanager::Road::RoadRule::LEFT_HAND_TRAFFIC)
-            {
-                vehicle->pos_.SetHeadingRelativeRoadDirection(laneID > 0 ? 0.0 : M_PI);
-            }
-            else
-            {
-                // default to LHT if undefined
-                vehicle->pos_.SetHeadingRelativeRoadDirection(laneID > 0 ? 0.0 : M_PI);
-            }
+            vehicle->pos_.SetHeadingRelativeRoadDirection(laneID > 0 ? 0.0 : M_PI);
 
             vehicle->SetSpeed(velocity_);
             // vehicle->scaleMode_ = EntityScaleMode::BB_TO_MODEL;

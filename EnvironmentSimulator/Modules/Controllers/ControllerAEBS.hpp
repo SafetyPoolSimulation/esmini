@@ -43,18 +43,31 @@ namespace scenarioengine
         int Activate(const ControlActivationMode (&mode)[static_cast<unsigned int>(ControlDomains::COUNT)]);
         void ReportKeyEvent(int key, bool down);
 
+        double speed_at_impact_ = NAN;
+        bool end_logged_ = false;
+
     private:
         ControllerALKS_R157SM::ReferenceDriver aeb_driver_;  // obtain ReferenceDriver to get AEB functionality
 
-        bool    active_;
+        /* Input parameters */
+        bool    available_;
         double  ttc_;
         double  deceleration_;
-        bool    available_;
+        double  fcw_audio_ttc_;
+        double  fcw_visual_ttc_;
+
+        /* Internal calculation parameters */
         double  setSpeed_;
         double  lateralDist_;
         double  currentSpeed_;
         bool    setSpeedSet_;
         bool    virtual_;
+
+        bool fcw_audio_logged_ = false;
+        bool fcw_visual_logged_ = false;
+        bool aeb_logged_        = false;
+
+        double min_gap_ever_ = LARGE_NUMBER;
     };
 
     Controller* InstantiateControllerAEBS(void* args);

@@ -32,10 +32,11 @@ Controller* scenarioengine::InstantiateControllerAEBS(void* args)
 
 ControllerAEBS::ControllerAEBS(InitArgs* args)
     : Controller(args),
-    active_(false),
+    available_(true),
     ttc_(1.4),
     deceleration_(8.3385),
-    available_(true),
+    fcw_audio_ttc_(2.3),
+    fcw_visual_ttc_(2.1),
     setSpeed_(0),
     lateralDist_(5.0),
     currentSpeed_(0),
@@ -44,6 +45,10 @@ ControllerAEBS::ControllerAEBS(InitArgs* args)
 {
     operating_domains_ = static_cast<unsigned int>(ControlDomainMasks::DOMAIN_MASK_LONG);
 
+    if (args && args->properties && args->properties->ValueExists("AEBAvailable"))
+    {
+        available_ = args->properties->GetValueStr("AEBAvailable") == "true" ? true : false;
+    }
     if (args && args->properties && args->properties->ValueExists("AEBTTC"))
     {
         ttc_ = strtod(args->properties->GetValueStr("AEBTTC"));
@@ -52,10 +57,16 @@ ControllerAEBS::ControllerAEBS(InitArgs* args)
     {
         deceleration_ = strtod(args->properties->GetValueStr("AEBDeceleration"));
     }
-    if (args && args->properties && args->properties->ValueExists("AEBAvailable"))
+    if (args && args->properties && args->properties->ValueExists("FCWAudioTTC"))
     {
-        available_ = args->properties->GetValueStr("AEBAvailable") == "true" ? true : false;
+        fcw_audio_ttc_ = strtod(args->properties->GetValueStr("FCWAudioTTC"));
     }
+    if (args && args->properties && args->properties->ValueExists("FCWVisualTTC"))
+    {
+        fcw_visual_ttc_ = strtod(args->properties->GetValueStr("FCWVisualTTC"));
+    }
+
+
 }
 
 void ControllerAEBS::Init()
@@ -101,11 +112,11 @@ void ControllerAEBS::Step(double timeStep)
     if (virtual_)
     {
         currentSpeed_ = object_->GetSpeed();
-        LOG_INFO("[AEBS] Virtual mode, currentSpeed set to {:.2f}", currentSpeed_);
+        //LOG_INFO("[AEBS] Virtual mode, currentSpeed set to {:.2f}", currentSpeed_);
     }
     else if (abs(object_->GetSpeed() - currentSpeed_) > 1e-3)
     {
-        LOG_INFO("[AEBS] New setspeed detected: {:.2f}", setSpeed_);
+        //LOG_INFO("[AEBS] New setspeed detected: {:.2f}", setSpeed_);
         setSpeed_ = object_->GetSpeed();
     }
 
@@ -144,7 +155,7 @@ void ControllerAEBS::Step(double timeStep)
             {
                 minGapLength = adjustedGapLength;
                 minObjIndex  = static_cast<int>(i);
-                LOG_INFO("[AEBS] Lead candidate found at index {}: gapLength = {:.2f}", i, minGapLength);
+                //LOG_INFO("[AEBS] Lead candidate found at index {}: gapLength = {:.2f}", i, minGapLength);
             }
         }
 
@@ -158,7 +169,7 @@ void ControllerAEBS::Step(double timeStep)
         {
             minGapLength = x_local;
             minObjIndex  = static_cast<int>(i);
-            LOG_INFO("[AEBS] Close object detected at index {}: x_local = {:.2f}", i, x_local);
+            //LOG_INFO("[AEBS] Close object detected at index {}: x_local = {:.2f}", i, x_local);
         }
     }
 
@@ -173,7 +184,7 @@ void ControllerAEBS::Step(double timeStep)
         }
         else
         {
-            LOG_INFO("[AEBS] Lead vehicle {} at index {}", lead->GetName(), minObjIndex);
+            //LOG_INFO("[AEBS] Lead vehicle {} at index {}", lead->GetName(), minObjIndex);
 
             // --- AEBS integration ---
             ControllerALKS_R157SM::Model::ObjectInfo obj_info;
@@ -186,12 +197,48 @@ void ControllerAEBS::Step(double timeStep)
                 relSpeed = 1e-6;
             }
 
-            obj_info.ttc = minGapLength / relSpeed;
-            LOG_INFO("[AEBS] AEBS update: TTC = {:.2f}, lead speed = {:.2f}, currentSpeed = {:.2f}", obj_info.ttc, lead->GetSpeed(), currentSpeed_);
+            obj_info.ttc = (relSpeed > 0.0) ? (minGapLength / relSpeed) : LARGE_NUMBER; // this will need refinement for non-stationary lead vehicles
+
+            //LOG_INFO("[AEBS] AEBS update: TTC = {:.2f}, lead speed = {:.2f}, currentSpeed = {:.2f}", obj_info.ttc, lead->GetSpeed(), currentSpeed_);
 
             try
             {
+                if (!aeb_logged_)
+                {
+                    if (!fcw_audio_logged_ && obj_info.ttc <= fcw_audio_ttc_)
+                    {
+                        LOG_INFO("[AEBS_EVENT] FCW_AUDIO "
+                                 "speed={:.2f} gap={:.2f} TTC={:.2f}",
+                                 currentSpeed_,
+                                 minGapLength,
+                                 obj_info.ttc);
+                        fcw_audio_logged_ = true;
+                    }
+
+                    if (!fcw_visual_logged_ && obj_info.ttc <= fcw_visual_ttc_)
+                    {
+                        LOG_INFO("[AEBS_EVENT] FCW_VISUAL "
+                                 "speed={:.2f} gap={:.2f} TTC={:.2f}",
+                                 currentSpeed_,
+                                 minGapLength,
+                                 obj_info.ttc);
+                        fcw_visual_logged_ = true;
+                    }
+                }
+
                 aeb_driver_.UpdateAEB(static_cast<Vehicle*>(object_), &obj_info);
+
+                if (aeb_driver_.aeb_.active_ && !aeb_logged_)
+                {
+                    LOG_INFO("[AEBS_EVENT] AEB_ACTIVATION "
+                             "speed={:.2f} gap={:.2f} TTC={:.2f} maxDecel={:.2f}",
+                             currentSpeed_,
+                             minGapLength,
+                             obj_info.ttc,
+                             aeb_driver_.aeb_.max_dec_);
+                    aeb_logged_ = true;
+                }
+
             }
             catch (...)
             {
@@ -216,7 +263,7 @@ void ControllerAEBS::Step(double timeStep)
     }
     else
     {
-        LOG_INFO("[AEBS] No lead vehicle detected.");
+        //LOG_INFO("[AEBS] No lead vehicle detected.");
 
         object_->SetSensorPosition(object_->pos_.GetX(), object_->pos_.GetY(), object_->pos_.GetZ());
     }
@@ -238,9 +285,36 @@ void ControllerAEBS::Step(double timeStep)
         gateway_->updateObjectSpeed(object_->GetId(), 0.0, currentSpeed_);
     }
 
+    min_gap_ever_ = std::min(min_gap_ever_, minGapLength);
+
+    // Get speed at impact
+    if (std::isnan(speed_at_impact_) && minGapLength <= 0.0)
+    {
+        speed_at_impact_ = currentSpeed_;
+    }
+
+    // Log end state
+    if (!end_logged_)
+    {
+        bool stopped = currentSpeed_ < 0.1;
+        bool interaction_complete = aeb_logged_ || fcw_audio_logged_ || fcw_visual_logged_;
+
+        if (stopped && interaction_complete)
+        {
+            LOG_INFO("[AEBS_EVENT] END_STATE "
+                     "minGap={:.2f} impact={} speedAtImpact={:.2f}",
+                     min_gap_ever_,
+                     (min_gap_ever_ <= 0.0 ? "YES" : "NO"),
+                     speed_at_impact_);
+
+            end_logged_ = true;
+        }
+    }
+
+
     Controller::Step(timeStep);
 
-    LOG_INFO("[AEBS] Step end, currentSpeed = {:.2f}", currentSpeed_);
+    //LOG_INFO("[AEBS] Step end, currentSpeed = {:.2f}", currentSpeed_);
 }
 
 

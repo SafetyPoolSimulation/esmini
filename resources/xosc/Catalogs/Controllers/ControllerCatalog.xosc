@@ -227,11 +227,13 @@
         </Controller>
 		<Controller name="AEBSController">
             <ParameterDeclarations>
+				<ParameterDeclaration name="AEBAvailable" parameterType="boolean" value="true" />
                 <ParameterDeclaration name="AEBTTC" parameterType="double" value="1.4" />
                 <!-- aebDeceleration: Applied deceleration (m/s2) by the AEB as part of the reference driver model (ref driver only) -->
                 <ParameterDeclaration name="AEBDeceleration" parameterType="double" value="8.3385" />
                 <!-- aebAvailable: "true" = AEB available, "false" = AEB unavailable (ref driver only) -->
-                <ParameterDeclaration name="AEBAvailable" parameterType="boolean" value="true" />
+                <ParameterDeclaration name="FCWAudioTTC" parameterType="double" value="2.3" />
+				<ParameterDeclaration name="FCWVisualTTC" parameterType="double" value="2.1" />
             </ParameterDeclarations>
             <Properties>
                 <Property name="aebTTC"  value="$AEBTTC" />

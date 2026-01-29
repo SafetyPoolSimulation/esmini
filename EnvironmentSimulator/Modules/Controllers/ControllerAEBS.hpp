@@ -55,10 +55,11 @@ namespace scenarioengine
         double  deceleration_;
         double  fcw_audio_ttc_;
         double  fcw_visual_ttc_;
+        double  lon_lookahead_dist_;
+        double  lat_lookahead_dist_;
 
         /* Internal calculation parameters */
         double  setSpeed_;
-        double  lateralDist_;
         double  currentSpeed_;
         bool    setSpeedSet_;
         bool    virtual_;

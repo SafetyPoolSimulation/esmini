@@ -234,6 +234,8 @@
                 <!-- aebAvailable: "true" = AEB available, "false" = AEB unavailable (ref driver only) -->
                 <ParameterDeclaration name="FCWAudioTTC" parameterType="double" value="2.3" />
 				<ParameterDeclaration name="FCWVisualTTC" parameterType="double" value="2.1" />
+				<ParameterDeclaration name="LookaheadDistanceLon" parameterType="double" value="50.0"/>
+				<ParameterDeclaration name="LookaheadDistanceLat" parameterType="double" value="5.0"/>
             </ParameterDeclarations>
             <Properties>
                 <Property name="aebTTC"  value="$AEBTTC" />

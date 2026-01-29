@@ -38,7 +38,8 @@ ControllerAEBS::ControllerAEBS(InitArgs* args)
     fcw_audio_ttc_(2.3),
     fcw_visual_ttc_(2.1),
     setSpeed_(0),
-    lateralDist_(5.0),
+    lon_lookahead_dist_(50.0),
+    lat_lookahead_dist_(5.0),
     currentSpeed_(0),
     setSpeedSet_(false),
     virtual_(false)
@@ -65,8 +66,14 @@ ControllerAEBS::ControllerAEBS(InitArgs* args)
     {
         fcw_visual_ttc_ = strtod(args->properties->GetValueStr("FCWVisualTTC"));
     }
-
-
+    if (args && args->properties && args->properties->ValueExists("LookaheadDistanceLon"))
+    {
+        lon_lookahead_dist_ = strtod(args->properties->GetValueStr("LookaheadDistanceLon"));
+    }
+    if (args && args->properties && args->properties->ValueExists("LookaheadDistanceLat"))
+    {
+        lat_lookahead_dist_ = strtod(args->properties->GetValueStr("LookaheadDistanceLat"));
+    }
 }
 
 void ControllerAEBS::Init()
@@ -120,7 +127,8 @@ void ControllerAEBS::Step(double timeStep)
         setSpeed_ = object_->GetSpeed();
     }
 
-    double lookaheadDist = MAX(50.0, 2 * minDist - pow(currentSpeed_, 2) / -object_->GetMaxDeceleration());
+    //double lookaheadDist = MAX(50.0, 2 * minDist - pow(currentSpeed_, 2) / -object_->GetMaxDeceleration());
+    double lookaheadDist = lon_lookahead_dist_;
 
     for (size_t i = 0; i < entities_->object_.size(); i++)
     {
@@ -151,7 +159,7 @@ void ControllerAEBS::Step(double timeStep)
                      static_cast<double>(pivot_obj->boundingbox_.center_.x_));
             }
 
-            if (diff.dLaneId == 0 && adjustedGapLength > 0 && adjustedGapLength < minGapLength && abs(diff.dt) < lateralDist_)
+            if (diff.dLaneId == 0 && adjustedGapLength > 0 && adjustedGapLength < minGapLength && abs(diff.dt) < lat_lookahead_dist_)
             {
                 minGapLength = adjustedGapLength;
                 minObjIndex  = static_cast<int>(i);

@@ -128,56 +128,28 @@ void ControllerAEBS::Step(double timeStep)
     }
 
     //double lookaheadDist = MAX(50.0, 2 * minDist - pow(currentSpeed_, 2) / -object_->GetMaxDeceleration());
-    double lookaheadDist = lon_lookahead_dist_;
+    double lookaheadDist = lon_lookahead_dist_; // set from .xosc parameter
 
+    // Loop over all entities
     for (size_t i = 0; i < entities_->object_.size(); i++)
     {
         Object* pivot_obj = entities_->object_[i];
-        if (pivot_obj == nullptr || pivot_obj == object_)
-        {
+        if (!pivot_obj || pivot_obj == object_)
             continue;
-        }
 
-        roadmanager::PositionDiff diff;
-        if (object_->pos_.Delta(&pivot_obj->pos_, diff, false, lookaheadDist))
-        {
-            double adjustedGapLength = diff.ds;
-            double dHeading          = GetAbsAngleDifference(object_->pos_.GetH(), pivot_obj->pos_.GetH());
-
-            if (dHeading < M_PI_2)
-            {
-                adjustedGapLength -=
-                    (static_cast<double>(object_->boundingbox_.dimensions_.length_) / 2.0 + static_cast<double>(object_->boundingbox_.center_.x_)) +
-                    (static_cast<double>(pivot_obj->boundingbox_.dimensions_.length_) / 2.0 -
-                     static_cast<double>(pivot_obj->boundingbox_.center_.x_));
-            }
-            else
-            {
-                adjustedGapLength -=
-                    (static_cast<double>(object_->boundingbox_.dimensions_.length_) / 2.0 + static_cast<double>(object_->boundingbox_.center_.x_)) +
-                    (static_cast<double>(pivot_obj->boundingbox_.dimensions_.length_) / 2.0 +
-                     static_cast<double>(pivot_obj->boundingbox_.center_.x_));
-            }
-
-            if (diff.dLaneId == 0 && adjustedGapLength > 0 && adjustedGapLength < minGapLength && abs(diff.dt) < lat_lookahead_dist_)
-            {
-                minGapLength = adjustedGapLength;
-                minObjIndex  = static_cast<int>(i);
-                //LOG_INFO("[AEBS] Lead candidate found at index {}: gapLength = {:.2f}", i, minGapLength);
-            }
-        }
-
+        // Compute bounding-box distances in ego-local frame
         double x_local, y_local;
         object_->FreeSpaceDistance(pivot_obj, &y_local, &x_local);
 
-        if (static_cast<unsigned int>(minObjIndex) != i && x_local > 0 &&
-            x_local <
-                1.0 + static_cast<double>(pivot_obj->boundingbox_.dimensions_.length_) + 0.5 * MAX(0.0, currentSpeed_ - pivot_obj->GetSpeed()) &&
-            y_local < 0.2 && y_local > -0.5)
+        // Skip vehicles outside longitudinal or lateral lookahead
+        if (x_local > lon_lookahead_dist_ || y_local < -lat_lookahead_dist_ || y_local > lat_lookahead_dist_)
+            continue;
+
+        // Candidate lead vehicle: smallest longitudinal distance
+        if (x_local > 0 && x_local < minGapLength)
         {
             minGapLength = x_local;
             minObjIndex  = static_cast<int>(i);
-            //LOG_INFO("[AEBS] Close object detected at index {}: x_local = {:.2f}", i, x_local);
         }
     }
 
@@ -201,54 +173,54 @@ void ControllerAEBS::Step(double timeStep)
             double relSpeed = currentSpeed_ - lead->GetSpeed();
             if (fabs(relSpeed) < 1e-6)
             {
-                LOG_WARN("[AEBS] relSpeed very small ({:.6f}), clamping to 1e-6 to avoid division by zero", relSpeed);
+                //LOG_WARN("[AEBS] relSpeed very small ({:.6f}), clamping to 1e-6 to avoid division by zero", relSpeed);
                 relSpeed = 1e-6;
             }
 
             obj_info.ttc = (relSpeed > 0.0) ? (minGapLength / relSpeed) : LARGE_NUMBER; // this will need refinement for non-stationary lead vehicles
 
             //LOG_INFO("[AEBS] AEBS update: TTC = {:.2f}, lead speed = {:.2f}, currentSpeed = {:.2f}", obj_info.ttc, lead->GetSpeed(), currentSpeed_);
+      
+            // Log FCWs
+            if (!aeb_logged_)
+            {
+                if (!fcw_audio_logged_ && obj_info.ttc <= fcw_audio_ttc_)
+                {
+                    LOG_INFO("[AEBS_EVENT] FCW_AUDIO "
+                                "speed={:.2f}m/s gap={:.2f}m TTC={:.2f}s",
+                                currentSpeed_,
+                                minGapLength,
+                                obj_info.ttc);
+                    fcw_audio_logged_ = true;
+                }
+
+                if (!fcw_visual_logged_ && obj_info.ttc <= fcw_visual_ttc_)
+                {
+                    LOG_INFO("[AEBS_EVENT] FCW_VISUAL "
+                                "speed={:.2f}m/s gap={:.2f}m TTC={:.2f}s",
+                                currentSpeed_,
+                                minGapLength,
+                                obj_info.ttc);
+                    fcw_visual_logged_ = true;
+                }
+            }
 
             try
             {
-                if (!aeb_logged_)
-                {
-                    if (!fcw_audio_logged_ && obj_info.ttc <= fcw_audio_ttc_)
-                    {
-                        LOG_INFO("[AEBS_EVENT] FCW_AUDIO "
-                                 "speed={:.2f}m/s gap={:.2f}m TTC={:.2f}s",
-                                 currentSpeed_,
-                                 minGapLength,
-                                 obj_info.ttc);
-                        fcw_audio_logged_ = true;
-                    }
-
-                    if (!fcw_visual_logged_ && obj_info.ttc <= fcw_visual_ttc_)
-                    {
-                        LOG_INFO("[AEBS_EVENT] FCW_VISUAL "
-                                 "speed={:.2f}m/s gap={:.2f}m TTC={:.2f}s",
-                                 currentSpeed_,
-                                 minGapLength,
-                                 obj_info.ttc);
-                        fcw_visual_logged_ = true;
-                    }
-                }
-
                 aeb_driver_.UpdateAEB(static_cast<Vehicle*>(object_), &obj_info);
 
                 if (aeb_driver_.aeb_.active_ && !aeb_logged_)
                 {
                     aeb_start_time_ = scenario_engine_->getSimulationTime();
                     LOG_INFO("[AEBS_EVENT] AEB_ACTIVATION "
-                             "time {:.3f}s speed={:.2f}m/s gap={:.2f}m TTC={:.2f}s maxDecel={:.2f}m/s²",
-                             aeb_start_time_,
-                             currentSpeed_,
-                             minGapLength,
-                             obj_info.ttc,
-                             aeb_driver_.aeb_.max_dec_);
+                                "time {:.3f}s speed={:.2f}m/s gap={:.2f}m TTC={:.2f}s maxDecel={:.2f}m/s²",
+                                aeb_start_time_,
+                                currentSpeed_,
+                                minGapLength,
+                                obj_info.ttc,
+                                aeb_driver_.aeb_.max_dec_);
                     aeb_logged_ = true;
                 }
-
             }
             catch (...)
             {

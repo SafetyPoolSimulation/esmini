@@ -216,7 +216,7 @@ void ControllerAEBS::Step(double timeStep)
                     if (!fcw_audio_logged_ && obj_info.ttc <= fcw_audio_ttc_)
                     {
                         LOG_INFO("[AEBS_EVENT] FCW_AUDIO "
-                                 "speed={:.2f} gap={:.2f} TTC={:.2f}",
+                                 "speed={:.2f}m/s gap={:.2f}m TTC={:.2f}s",
                                  currentSpeed_,
                                  minGapLength,
                                  obj_info.ttc);
@@ -226,7 +226,7 @@ void ControllerAEBS::Step(double timeStep)
                     if (!fcw_visual_logged_ && obj_info.ttc <= fcw_visual_ttc_)
                     {
                         LOG_INFO("[AEBS_EVENT] FCW_VISUAL "
-                                 "speed={:.2f} gap={:.2f} TTC={:.2f}",
+                                 "speed={:.2f}m/s gap={:.2f}m TTC={:.2f}s",
                                  currentSpeed_,
                                  minGapLength,
                                  obj_info.ttc);
@@ -238,8 +238,10 @@ void ControllerAEBS::Step(double timeStep)
 
                 if (aeb_driver_.aeb_.active_ && !aeb_logged_)
                 {
+                    aeb_start_time_ = scenario_engine_->getSimulationTime();
                     LOG_INFO("[AEBS_EVENT] AEB_ACTIVATION "
-                             "speed={:.2f} gap={:.2f} TTC={:.2f} maxDecel={:.2f}",
+                             "time {:.3f}s speed={:.2f}m/s gap={:.2f}m TTC={:.2f}s maxDecel={:.2f}m/s²",
+                             aeb_start_time_,
                              currentSpeed_,
                              minGapLength,
                              obj_info.ttc,
@@ -258,12 +260,7 @@ void ControllerAEBS::Step(double timeStep)
             {
                 double aebDec = -aeb_driver_.aeb_.max_dec_;
                 currentSpeed_ = std::max(0.0, currentSpeed_ + aebDec * timeStep);
-                LOG_INFO("[AEBS] AEBS ACTIVE! Deceleration {:.2f}, currentSpeed = {:.2f}", aebDec, currentSpeed_);
-            }
-
-            if (minGapLength < 1)
-            {
-                currentSpeed_ = 0.0;
+                LOG_INFO("[AEBS] AEBS ACTIVE! Deceleration {:.2f}m/s², currentSpeed = {:.2f}m/s", aebDec, currentSpeed_);
             }
 
             object_->SetSensorPosition(lead->pos_.GetX(), lead->pos_.GetY(), lead->pos_.GetZ());
@@ -310,7 +307,7 @@ void ControllerAEBS::Step(double timeStep)
         if (stopped && interaction_complete)
         {
             LOG_INFO("[AEBS_EVENT] END_STATE "
-                     "minGap={:.2f} impact={} speedAtImpact={:.2f}",
+                     "minGap={:.2f}m impact={} speedAtImpact={:.2f}m/s",
                      min_gap_ever_,
                      (min_gap_ever_ <= 0.0 ? "YES" : "NO"),
                      speed_at_impact_);
@@ -318,7 +315,6 @@ void ControllerAEBS::Step(double timeStep)
             end_logged_ = true;
         }
     }
-
 
     Controller::Step(timeStep);
 

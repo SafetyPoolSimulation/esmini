@@ -67,6 +67,7 @@ namespace scenarioengine
         bool fcw_audio_logged_ = false;
         bool fcw_visual_logged_ = false;
         bool aeb_logged_        = false;
+        double aeb_start_time_     = NAN;
 
         double min_gap_ever_ = LARGE_NUMBER;
     };

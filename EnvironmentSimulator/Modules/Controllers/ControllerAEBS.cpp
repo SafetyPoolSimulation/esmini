@@ -32,17 +32,17 @@ Controller* scenarioengine::InstantiateControllerAEBS(void* args)
 
 ControllerAEBS::ControllerAEBS(InitArgs* args)
     : Controller(args),
-    available_(true),
-    ttc_(1.4),
-    deceleration_(8.3385),
-    fcw_audio_ttc_(2.3),
-    fcw_visual_ttc_(2.1),
-    setSpeed_(0),
-    lon_lookahead_dist_(50.0),
-    lat_lookahead_dist_(5.0),
-    currentSpeed_(0),
-    setSpeedSet_(false),
-    virtual_(false)
+      available_(true),
+      ttc_(1.4),
+      deceleration_(8.3385),
+      fcw_audio_ttc_(2.3),
+      fcw_visual_ttc_(2.1),
+      setSpeed_(0),
+      lon_lookahead_dist_(50.0),
+      lat_lookahead_dist_(5.0),
+      currentSpeed_(0),
+      setSpeedSet_(false),
+      virtual_(false)
 {
     operating_domains_ = static_cast<unsigned int>(ControlDomainMasks::DOMAIN_MASK_LONG);
 
@@ -73,6 +73,19 @@ ControllerAEBS::ControllerAEBS(InitArgs* args)
     if (args && args->properties && args->properties->ValueExists("LookaheadDistanceLat"))
     {
         lat_lookahead_dist_ = strtod(args->properties->GetValueStr("LookaheadDistanceLat"));
+    }
+}
+
+ControllerAEBS::~ControllerAEBS()
+{
+    // Log END_STATE if not already logged
+    if (!end_logged_)
+    {
+        LOG_INFO("[AEBS_EVENT] END_STATE (destructor) "
+                 "minGap={:.2f}m impact=YES speedAtImpact={:.2f}m/s",
+                 min_gap_ever_,
+                 currentSpeed_);
+        end_logged_ = true;
     }
 }
 

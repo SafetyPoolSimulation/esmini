@@ -27,6 +27,8 @@ namespace scenarioengine
     public:
         ControllerAEBS(InitArgs* args);
 
+        ~ControllerAEBS();
+
         virtual const char* GetTypeName()
         {
             return CONTROLLER_AEBS_TYPE_NAME;

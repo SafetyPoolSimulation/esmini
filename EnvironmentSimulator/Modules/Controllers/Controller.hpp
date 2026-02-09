@@ -50,6 +50,7 @@ namespace scenarioengine
             CONTROLLER_TYPE_ECE_ALKS_REF_DRIVER,
             CONTROLLER_ALKS_R157SM,
             CONTROLLER_AEBS,
+            CONTROLLER_TYPE_GIVE_WAY_ACC,
             CONTROLLER_TYPE_LOOMING,
             CONTROLLER_TYPE_OFFROAD_FOLLOWER,
             CONTROLLER_TYPE_HID,

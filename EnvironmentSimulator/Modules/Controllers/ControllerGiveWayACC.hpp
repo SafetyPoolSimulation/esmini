@@ -49,12 +49,10 @@ namespace scenarioengine
             timeGap_ = setTimeGap;
         }
 
-        bool HasRightSidePriorityConflict(Object* ego, Object* other);
-
-        static constexpr double GIVEWAY_RADIUS    = 25.0;
-        static constexpr double GIVEWAY_ANGLE_MIN = -M_PI_2;
-        static constexpr double GIVEWAY_ANGLE_MAX = M_PI / 8.0;
         static constexpr double GIVEWAY_MIN_SPEED = 0.5;
+        static constexpr double GIVEWAY_START_DIST = 80.0;
+        static constexpr double X_MAX = 20.0;  // forward
+        static constexpr double Y_MAX = 10.0;  // right
 
     private:
         vehicle::Vehicle vehicle_;

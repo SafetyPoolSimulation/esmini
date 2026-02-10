@@ -112,35 +112,83 @@ void ControllerGiveWayACC::Step(double timeStep)
             {
                 approachingJunction = true;
                 distToJunction      = egoRoad->GetLength() - object_->pos_.GetS();
+                //LOG_INFO("Junction detected ahead! Distance: {:.2f}m", distToJunction);
                 break;
             }
         }
     }
 
-    // ----------------------------------------------------
+// ----------------------------------------------------
     // 2. RIGHT-OF-WAY CHECK (FRONT-RIGHT BOX ONLY)
     // ----------------------------------------------------
     bool mustStop = false;
 
-    constexpr double GIVEWAY_START_DIST = 30.0;
-    constexpr double X_MAX              = 20.0;  // forward
-    constexpr double Y_MAX              = 10.0;  // right
-
     if (approachingJunction && distToJunction < GIVEWAY_START_DIST)
     {
+        //LOG_INFO("Entering give-way zone (dist to junction: {:.2f}m)", distToJunction);
+
         for (auto other : entities_->object_)
         {
             if (!other || other == object_)
                 continue;
 
             double x_local, y_local;
-            object_->FreeSpaceDistance(other, &y_local, &x_local);
+            double distFromObject = object_->FreeSpaceDistance(other, &y_local, &x_local);
 
-            // STRICT front-right box
-            if (x_local > 0.0 && x_local < X_MAX && y_local > 0.0 && y_local < Y_MAX && other->pos_.GetVelLong() > GIVEWAY_MIN_SPEED)
+            // Log all nearby vehicles for debugging
+            //if (fabs(x_local) < 30.0 && fabs(y_local) < 15.0)
+            //{
+            //    LOG_INFO("  Vehicle detected - ID: {}, x_local: {:.2f}, y_local: {:.2f}, speed: {:.2f}",
+            //             other->GetId(),
+            //             x_local,
+            //             y_local,
+            //             other->pos_.GetVelLong());
+            //}
+
+            // Check if vehicle is in the zone ahead
+            if (x_local > 0.0 && x_local < X_MAX && fabs(y_local) < Y_MAX && other->pos_.GetVelLong() > GIVEWAY_MIN_SPEED)
             {
-                mustStop = true;
-                break;
+                // Calculate relative heading to determine if approaching from the right
+                double relativeHeading = other->pos_.GetH() - object_->pos_.GetH();
+
+                // Normalize to [-PI, PI]
+                while (relativeHeading > M_PI)
+                    relativeHeading -= 2.0 * M_PI;
+                while (relativeHeading < -M_PI)
+                    relativeHeading += 2.0 * M_PI;
+
+                //LOG_INFO("  Relative heading: {:.2f} rad ({:.1f}deg)", relativeHeading, relativeHeading * 180.0 / M_PI);
+
+                // Vehicle approaching from right:
+                // At a junction, a vehicle from the right road will have heading roughly +45° to +135°
+                // (They're traveling perpendicular to us, pointing leftward across our path)
+                bool approachingFromRight = (relativeHeading > M_PI / 4.0 && relativeHeading < 3.0 * M_PI / 4.0);
+
+                //LOG_INFO("  Checking right approach: heading={:.1f}deg, isFromRight={}", relativeHeading * 180.0 / M_PI, approachingFromRight);
+
+                if (approachingFromRight)
+                {
+                    //LOG_INFO("  >>> GIVE WAY! Vehicle from right - ID: {}, x: {:.2f}, y: {:.2f}, speed: {:.2f}, heading: {:.1f}deg",
+                             //other->GetId(),
+                             //x_local,
+                             //y_local,
+                             //other->pos_.GetVelLong(),
+                             //relativeHeading * 180.0 / M_PI);
+
+                    // Progressive braking based on distance to junction
+                    if (distToJunction < 5.0)
+                    {
+                        mustStop = true;  // Full stop close to junction
+                    }
+                    else
+                    {
+                        // Gradual slowdown: scale target speed with distance
+                        double slowdownFactor = distToJunction / GIVEWAY_START_DIST;
+                        targetSpeed           = MIN(targetSpeed, setSpeed_ * slowdownFactor * 0.5);
+                        //LOG_INFO("  Progressive slowdown - factor: {:.2f}, target: {:.2f}", slowdownFactor, targetSpeed);
+                    }
+                    break;
+                }
             }
         }
     }
@@ -164,6 +212,11 @@ void ControllerGiveWayACC::Step(double timeStep)
             // STRICTLY in front lane
             if (x_local > 0.0 && x_local < emergencyDist && fabs(y_local) < lateralDist_ * 0.4)
             {
+                //LOG_INFO("Emergency stop! Vehicle directly ahead - ID: {}, x: {:.2f}, y: {:.2f}, emergency_dist: {:.2f}",
+                         //other->GetId(),
+                         //x_local,
+                         //y_local,
+                         //emergencyDist);
                 mustStop = true;
                 break;
             }
@@ -175,6 +228,7 @@ void ControllerGiveWayACC::Step(double timeStep)
     // ----------------------------------------------------
     if (mustStop)
     {
+        //LOG_INFO("TARGET SPEED SET TO ZERO (mustStop=true)");
         targetSpeed = 0.0;
     }
     else
@@ -212,6 +266,11 @@ void ControllerGiveWayACC::Step(double timeStep)
 
             if (minGap < followDist)
             {
+               //LOG_INFO("ACC following - Lead vehicle ID: {}, gap: {:.2f}m, follow_dist: {:.2f}m, lead_speed: {:.2f}",
+                         //lead->GetId(),
+                         //minGap,
+                         //followDist,
+                         //lead->GetSpeed());
                 targetSpeed = MIN(targetSpeed, lead->GetSpeed());
             }
         }
@@ -226,6 +285,8 @@ void ControllerGiveWayACC::Step(double timeStep)
 
     currentSpeed_ += acc * timeStep;
     currentSpeed_ = CLAMP(currentSpeed_, 0.0, setSpeed_);
+
+   // LOG_INFO("Speed control - target: {:.2f}, current: {:.2f}, acc: {:.2f}", targetSpeed, currentSpeed_, acc);
 
     // ----------------------------------------------------
     // 7. APPLY MOTION

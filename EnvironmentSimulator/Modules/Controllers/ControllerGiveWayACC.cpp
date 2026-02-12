@@ -87,6 +87,19 @@ void ControllerGiveWayACC::Step(double timeStep)
     const double minDist            = 3.0;
     const double accelerationFactor = 0.7;
 
+     // First check if speed has been set from somewhere else (another action or controller), respect it and update setSpeed
+    if (virtual_)
+    {
+        currentSpeed_ = object_->GetSpeed();
+    }
+    else if (
+        // mode_ == ControlOperationMode::MODE_ADDITIVE &&
+        abs(object_->GetSpeed() - currentSpeed_) > 1e-3)
+    {
+        LOG_INFO("New setspeed: {:5.2f}", setSpeed_);
+        setSpeed_ = object_->GetSpeed();
+    }
+
     // Base desired speed
     double targetSpeed = setSpeed_;
 

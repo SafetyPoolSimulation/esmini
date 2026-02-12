@@ -87,8 +87,15 @@ void ControllerGiveWayACC::Step(double timeStep)
     const double minDist            = 3.0;
     const double accelerationFactor = 0.7;
 
-    // Base desired speed
-    double targetSpeed = setSpeed_;
+    // First check if speed has been set from somewhere else (another action or controller), respect it and update setSpeed
+    if (virtual_)
+    {
+        currentSpeed_ = object_->GetSpeed();
+    }
+    else if (abs(object_->GetSpeed() - currentSpeed_) > 1e-3)
+    {
+        setSpeed_ = object_->GetSpeed();
+    }
 
     // ----------------------------------------------------
     // 1. Detect if Ego is approaching a junction
@@ -112,43 +119,29 @@ void ControllerGiveWayACC::Step(double timeStep)
             {
                 approachingJunction = true;
                 distToJunction      = egoRoad->GetLength() - object_->pos_.GetS();
-                //LOG_INFO("Junction detected ahead! Distance: {:.2f}m", distToJunction);
                 break;
             }
         }
     }
 
-// ----------------------------------------------------
+    // ----------------------------------------------------
     // 2. RIGHT-OF-WAY CHECK (FRONT-RIGHT BOX ONLY)
     // ----------------------------------------------------
-    bool mustStop = false;
+    bool   giveWayActive      = false;
+    double giveWayTargetSpeed = 0.0;
 
     if (approachingJunction && distToJunction < GIVEWAY_START_DIST)
     {
-        //LOG_INFO("Entering give-way zone (dist to junction: {:.2f}m)", distToJunction);
-
         for (auto other : entities_->object_)
         {
             if (!other || other == object_)
                 continue;
 
             double x_local, y_local;
-            double distFromObject = object_->FreeSpaceDistance(other, &y_local, &x_local);
+            object_->FreeSpaceDistance(other, &y_local, &x_local);
 
-            // Log all nearby vehicles for debugging
-            //if (fabs(x_local) < 30.0 && fabs(y_local) < 15.0)
-            //{
-            //    LOG_INFO("  Vehicle detected - ID: {}, x_local: {:.2f}, y_local: {:.2f}, speed: {:.2f}",
-            //             other->GetId(),
-            //             x_local,
-            //             y_local,
-            //             other->pos_.GetVelLong());
-            //}
-
-            // Check if vehicle is in the zone ahead
             if (x_local > 0.0 && x_local < X_MAX && fabs(y_local) < Y_MAX && other->pos_.GetVelLong() > GIVEWAY_MIN_SPEED)
             {
-                // Calculate relative heading to determine if approaching from the right
                 double relativeHeading = other->pos_.GetH() - object_->pos_.GetH();
 
                 // Normalize to [-PI, PI]
@@ -157,35 +150,20 @@ void ControllerGiveWayACC::Step(double timeStep)
                 while (relativeHeading < -M_PI)
                     relativeHeading += 2.0 * M_PI;
 
-                //LOG_INFO("  Relative heading: {:.2f} rad ({:.1f}deg)", relativeHeading, relativeHeading * 180.0 / M_PI);
-
-                // Vehicle approaching from right:
-                // At a junction, a vehicle from the right road will have heading roughly +45° to +135°
-                // (They're traveling perpendicular to us, pointing leftward across our path)
                 bool approachingFromRight = (relativeHeading > M_PI / 4.0 && relativeHeading < 3.0 * M_PI / 4.0);
-
-                //LOG_INFO("  Checking right approach: heading={:.1f}deg, isFromRight={}", relativeHeading * 180.0 / M_PI, approachingFromRight);
 
                 if (approachingFromRight)
                 {
-                    //LOG_INFO("  >>> GIVE WAY! Vehicle from right - ID: {}, x: {:.2f}, y: {:.2f}, speed: {:.2f}, heading: {:.1f}deg",
-                             //other->GetId(),
-                             //x_local,
-                             //y_local,
-                             //other->pos_.GetVelLong(),
-                             //relativeHeading * 180.0 / M_PI);
+                    giveWayActive = true;
 
-                    // Progressive braking based on distance to junction
                     if (distToJunction < 5.0)
                     {
-                        mustStop = true;  // Full stop close to junction
+                        giveWayTargetSpeed = 0.0;
                     }
                     else
                     {
-                        // Gradual slowdown: scale target speed with distance
                         double slowdownFactor = distToJunction / GIVEWAY_START_DIST;
-                        targetSpeed           = MIN(targetSpeed, setSpeed_ * slowdownFactor * 0.5);
-                        //LOG_INFO("  Progressive slowdown - factor: {:.2f}, target: {:.2f}", slowdownFactor, targetSpeed);
+                        giveWayTargetSpeed    = setSpeed_ * slowdownFactor * 0.5;
                     }
                     break;
                 }
@@ -196,10 +174,9 @@ void ControllerGiveWayACC::Step(double timeStep)
     // ----------------------------------------------------
     // 3. HARD SAFETY: VEHICLE DIRECTLY IN FRONT
     // ----------------------------------------------------
-    if (!mustStop)
+    if (!giveWayActive)
     {
-        // braking distance + buffer
-        double emergencyDist = minDist + 0.5 * currentSpeed_ * currentSpeed_ / object_->GetMaxDeceleration() + 1.0;  // buffer
+        double emergencyDist = minDist + 0.5 * currentSpeed_ * currentSpeed_ / object_->GetMaxDeceleration() + 1.0;
 
         for (auto other : entities_->object_)
         {
@@ -209,87 +186,102 @@ void ControllerGiveWayACC::Step(double timeStep)
             double x_local, y_local;
             object_->FreeSpaceDistance(other, &y_local, &x_local);
 
-            // STRICTLY in front lane
             if (x_local > 0.0 && x_local < emergencyDist && fabs(y_local) < lateralDist_ * 0.4)
             {
-                //LOG_INFO("Emergency stop! Vehicle directly ahead - ID: {}, x: {:.2f}, y: {:.2f}, emergency_dist: {:.2f}",
-                         //other->GetId(),
-                         //x_local,
-                         //y_local,
-                         //emergencyDist);
-                mustStop = true;
+                giveWayActive      = true;
+                giveWayTargetSpeed = 0.0;
                 break;
             }
         }
     }
 
     // ----------------------------------------------------
-    // 4. APPLY STOP LOGIC
+    // 4. ACC FOLLOWING - Find lead vehicle (like original ACC)
     // ----------------------------------------------------
-    if (mustStop)
+    double minGap      = LARGE_NUMBER;
+    int    minObjIndex = -1;
+
+    double lookaheadDist = MAX(50.0, 2 * minDist - pow(currentSpeed_, 2) / -object_->GetMaxDeceleration());
+
+    for (size_t i = 0; i < entities_->object_.size(); i++)
     {
-        //LOG_INFO("TARGET SPEED SET TO ZERO (mustStop=true)");
-        targetSpeed = 0.0;
+        Object* other = entities_->object_[i];
+        if (!other || other == object_)
+            continue;
+
+        roadmanager::PositionDiff diff;
+        if (!object_->pos_.Delta(&other->pos_, diff, false, lookaheadDist))
+            continue;
+
+        if (diff.dLaneId != 0 || diff.ds <= 0 || fabs(diff.dt) > lateralDist_)
+            continue;
+
+        if (diff.ds < minGap)
+        {
+            minGap      = diff.ds;
+            minObjIndex = static_cast<int>(i);
+        }
+    }
+
+    // ----------------------------------------------------
+    // 5. SPEED CONTROLLER (3 paths: lead vehicle, give-way, or free)
+    // ----------------------------------------------------
+    double acc = 0.0;
+
+    if (minObjIndex > -1)
+    {
+        // PATH 1: Lead vehicle detected - use ACC following logic (exactly like original ACC)
+        if (minGap < 1)
+        {
+            currentSpeed_ = 0.0;
+        }
+        else
+        {
+            Object* lead            = entities_->object_[static_cast<unsigned int>(minObjIndex)];
+            double  speedForTimeGap = MAX(currentSpeed_, lead->GetSpeed());
+            double  followDist      = minDist + timeGap_ * fabs(speedForTimeGap);
+            double  dist            = minGap - followDist;
+            double  distFactor      = MIN(1.0, dist / followDist);
+
+            double dvMin = currentSpeed_ - MIN(setSpeed_, lead->GetSpeed());
+            double dvSet = currentSpeed_ - setSpeed_;
+
+            acc = 2.5 * distFactor - distFactor * dvSet - (1 - distFactor) * dvMin;
+            acc = CLAMP(acc, -object_->GetMaxDeceleration(), object_->GetMaxAcceleration());
+
+            currentSpeed_ += acc * timeStep;
+            currentSpeed_ = MIN(MAX(0.0, currentSpeed_), setSpeed_);
+        }
+    }
+    else if (giveWayActive)
+    {
+        // PATH 2: Give-way active - use clamped response (like ACC with lead vehicle)
+        acc = (giveWayTargetSpeed - currentSpeed_) * accelerationFactor * object_->GetMaxAcceleration();
+        acc = CLAMP(acc, -object_->GetMaxDeceleration(), object_->GetMaxAcceleration());
+
+        currentSpeed_ += acc * timeStep;
+        currentSpeed_ = MIN(MAX(0.0, currentSpeed_), setSpeed_);
     }
     else
     {
-        // ------------------------------------------------
-        // 5. ACC FOLLOWING (optional lead vehicle)
-        // ------------------------------------------------
-        double  minGap = LARGE_NUMBER;
-        Object* lead   = nullptr;
+        // PATH 3: No lead, no give-way - smooth convergence to setSpeed_ (exactly like original ACC)
+        acc = (setSpeed_ - currentSpeed_) * accelerationFactor * object_->GetMaxAcceleration();
+        acc = CLAMP(acc, -object_->GetMaxDeceleration(), accelerationFactor * object_->GetMaxAcceleration());
 
-        double lookaheadDist = MAX(50.0, 2 * minDist - pow(currentSpeed_, 2) / -object_->GetMaxDeceleration());
+        double tmpSpeed = currentSpeed_ + acc * timeStep;
 
-        for (auto other : entities_->object_)
+        if (abs(tmpSpeed - setSpeed_) > abs(currentSpeed_ - setSpeed_))
         {
-            if (!other || other == object_)
-                continue;
-
-            roadmanager::PositionDiff diff;
-            if (!object_->pos_.Delta(&other->pos_, diff, false, lookaheadDist))
-                continue;
-
-            if (diff.dLaneId != 0 || diff.ds <= 0 || fabs(diff.dt) > lateralDist_)
-                continue;
-
-            if (diff.ds < minGap)
-            {
-                minGap = diff.ds;
-                lead   = other;
-            }
+            currentSpeed_ = setSpeed_;
         }
-
-        if (lead)
+        else
         {
-            double followDist = minDist + timeGap_ * fabs(MAX(currentSpeed_, lead->GetSpeed()));
-
-            if (minGap < followDist)
-            {
-               //LOG_INFO("ACC following - Lead vehicle ID: {}, gap: {:.2f}m, follow_dist: {:.2f}m, lead_speed: {:.2f}",
-                         //lead->GetId(),
-                         //minGap,
-                         //followDist,
-                         //lead->GetSpeed());
-                targetSpeed = MIN(targetSpeed, lead->GetSpeed());
-            }
+            currentSpeed_ = tmpSpeed;
         }
     }
 
     // ----------------------------------------------------
-    // 6. FINAL SPEED CONTROLLER (THIS IS THE FIX)
-    // ----------------------------------------------------
-    double acc = (targetSpeed - currentSpeed_) * accelerationFactor * object_->GetMaxAcceleration();
-
-    acc = CLAMP(acc, -object_->GetMaxDeceleration(), object_->GetMaxAcceleration());
-
-    currentSpeed_ += acc * timeStep;
-    currentSpeed_ = CLAMP(currentSpeed_, 0.0, setSpeed_);
-
-   // LOG_INFO("Speed control - target: {:.2f}, current: {:.2f}, acc: {:.2f}", targetSpeed, currentSpeed_, acc);
-
-    // ----------------------------------------------------
-    // 7. APPLY MOTION
+    // 6. APPLY MOTION
     // ----------------------------------------------------
     if (mode_ == ControlOperationMode::MODE_OVERRIDE && !virtual_)
     {

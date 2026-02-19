@@ -45,6 +45,8 @@ namespace scenarioengine
         int Activate(const ControlActivationMode (&mode)[static_cast<unsigned int>(ControlDomains::COUNT)]);
         void ReportKeyEvent(int key, bool down);
 
+        void UpdateDynamicParams(double egoSpeed);
+
         double speed_at_impact_ = NAN;
         bool end_logged_ = false;
 
@@ -54,7 +56,7 @@ namespace scenarioengine
         /* Input parameters */
         bool    available_;
         double  ttc_;
-        double  deceleration_;
+        double  deceleration_; // OpenSCENARIO max.
         double  fcw_audio_ttc_;
         double  fcw_visual_ttc_;
         double  lon_lookahead_dist_;
@@ -70,6 +72,17 @@ namespace scenarioengine
         bool fcw_visual_logged_ = false;
         bool aeb_logged_        = false;
         double aeb_start_time_     = NAN;
+
+        /* Dynamic Braking Paremeters */
+        double brake_delay_ = 0.0;
+        double ramp_time_   = 0.5;
+        double max_decel_   = 10.0; // AEB requested peak deceleration
+        
+        bool brake_started_ = false;
+        double brake_start_time_ = 0.0;
+        double current_decel_    = 0.0;
+
+        double v_trigger_ = 0.0;  // speed at AEB trigger moment, used to scale decel
 
         double min_gap_ever_ = LARGE_NUMBER;
     };

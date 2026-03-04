@@ -2004,14 +2004,14 @@ void CSV_Logger::Open(std::string scenario_filename, int numvehicles, std::strin
 
     // Standard ESMINI log header, appended with Scenario file name and vehicle count
     static char message[max_csv_entry_length];
-    snprintf(message, max_csv_entry_length, "esmini GIT REV: %s", esmini_git_rev());
-    file_ << message << std::endl;
-    snprintf(message, max_csv_entry_length, "esmini GIT TAG: %s", esmini_git_tag());
-    file_ << message << std::endl;
-    snprintf(message, max_csv_entry_length, "esmini GIT BRANCH: %s", esmini_git_branch());
-    file_ << message << std::endl;
-    snprintf(message, max_csv_entry_length, "esmini BUILD VERSION: %s", esmini_build_version());
-    file_ << message << std::endl;
+    //snprintf(message, max_csv_entry_length, "esmini GIT REV: %s", esmini_git_rev());
+    //file_ << message << std::endl;
+    //snprintf(message, max_csv_entry_length, "esmini GIT TAG: %s", esmini_git_tag());
+    //file_ << message << std::endl;
+    //snprintf(message, max_csv_entry_length, "esmini GIT BRANCH: %s", esmini_git_branch());
+    //file_ << message << std::endl;
+    //snprintf(message, max_csv_entry_length, "esmini BUILD VERSION: %s", esmini_build_version());
+    //file_ << message << std::endl;
     snprintf(message, max_csv_entry_length, "Scenario File Name: %s", scenario_filename.c_str());
     file_ << message << std::endl;
     snprintf(message, max_csv_entry_length, "Number of Vehicles: %d", numvehicles);

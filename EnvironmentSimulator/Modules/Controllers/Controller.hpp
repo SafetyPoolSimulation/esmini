@@ -55,6 +55,7 @@ namespace scenarioengine
             CONTROLLER_TYPE_OFFROAD_FOLLOWER,
             CONTROLLER_TYPE_HID,
             CONTROLLER_TYPE_FOLLOW_REFERENCE,
+            CONTROLLER_TYPE_SPEED_PROFILE,
             N_CONTROLLER_TYPES,
             CONTROLLER_TYPE_UNDEFINED,
             GHOST_RESERVED_TYPE       = 100,

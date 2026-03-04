@@ -373,5 +373,13 @@
                 <Property name="referenceEntity"  value="$ReferenceEntity" />
             </Properties>
         </Controller>
+		<Controller name="SpeedProfileController">
+            <ParameterDeclarations>
+                <ParameterDeclaration name="CsvPath" parameterType="string" value="speed_profile.csv" />
+            </ParameterDeclarations>
+            <Properties>
+                <Property name="csvPath" value="CsvPath" />
+            </Properties>
+        </Controller>
     </Catalog>
 </OpenSCENARIO>

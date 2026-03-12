@@ -25,7 +25,6 @@ namespace scenarioengine
 
         void Init();
         void InitPostPlayer();
-        void LinkObject(Object* object);
         void Step(double timeStep);
         int  Activate(const ControlActivationMode (&mode)[static_cast<unsigned int>(ControlDomains::COUNT)]);
         void ReportKeyEvent(int key, bool down);
@@ -37,6 +36,10 @@ namespace scenarioengine
         std::vector<double> times_;
         std::vector<double> speeds_;
         double              t_trigger_;
+
+        double currentSpeed_;
+        double setSpeed_;
+        bool setSpeedSet_;
     };
 
     Controller* InstantiateControllerSpeedProfile(void* args);

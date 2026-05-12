@@ -1799,6 +1799,10 @@ std::string Vehicle::Category2String(int category)
             return "truck";
         case Category::VAN:
             return "van";
+        case Category::AIRCRAFT:
+            return "aircraft";
+        case Category::BOAT : 
+            return "boat";
         default:
             return "Unknown";
     }

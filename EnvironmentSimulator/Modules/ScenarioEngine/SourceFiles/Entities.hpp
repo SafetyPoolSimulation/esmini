@@ -745,7 +745,9 @@ namespace scenarioengine
             MOTORBIKE   = 6,
             BICYCLE     = 7,
             TRAIN       = 8,
-            TRAM        = 9
+            TRAM        = 9,
+            AIRCRAFT    = 10,
+            BOAT        = 11
         } Category;
 
         Vehicle();
@@ -786,6 +788,14 @@ namespace scenarioengine
             else if (category == "van")
             {
                 category_ = static_cast<int>(Vehicle::Category::VAN);
+            }
+            else if (category == "aircraft")
+            {
+                category_ = static_cast<int>(Vehicle::Category::AIRCRAFT);
+            }
+            else if (category == "boat")
+            {
+                category_ = static_cast<int>(Vehicle::Category::BOAT);
             }
             else
             {

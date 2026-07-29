@@ -23,7 +23,8 @@ externals/osi
 externals/sumo
 externals/googletest
 externals/implot
-resources/models
+resources/models/*
+!resources/models/boat.osgb
 Hello-World_coding-example/build
 .pyenv
 .vscode

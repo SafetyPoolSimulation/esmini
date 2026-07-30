@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OpenSCENARIO>
+  <FileHeader revMajor="1" revMinor="2" date="2026-05-14T10:00:00" description="Maritime Rate-Based Test Scenario" author="ResearchTeam"/>
+  <ParameterDeclarations/>
+  <CatalogLocations/>
+  <RoadNetwork>
+    <LogicFile filepath="dummy_water.xodr"/>
+  </RoadNetwork>
+  <Entities>
+    <ScenarioObject name="Ego">
+      <Vehicle name="Boat_Custom" vehicleCategory="boat" model3d="boat.osgb">
+        <BoundingBox>
+          <Center x="0.0" y="0.0" z="0.0"/>
+          <Dimensions width="5.0" length="15.0" height="3.0"/>
+        </BoundingBox>
+        <Performance maxSpeed="15.0" maxAcceleration="2.0" maxDeceleration="2.0"/>
+        <Axles>
+          <FrontAxle maxSteering="0.5" positionX="5.0" positionZ="0.0" trackWidth="3.0" wheelDiameter="0.0"/>
+          <RearAxle maxSteering="0.0" positionX="-5.0" positionZ="0.0" trackWidth="3.0" wheelDiameter="0.0"/>
+        </Axles>
+        <Properties>
+          <Property name="esminiController" value="ExternalController"/>
+        </Properties>
+      </Vehicle>
+    </ScenarioObject>
+  </Entities>
+  <Storyboard>
+    <Init>
+      <Actions>
+        <Private entityRef="Ego">
+          <PrivateAction>
+            <TeleportAction>
+              <Position>
+                <WorldPosition x="0.0" y="0.0" z="0.0" h="0.0" p="0.0" r="0.0"/>
+              </Position>
+            </TeleportAction>
+          </PrivateAction>
+          <PrivateAction>
+            <LongitudinalAction>
+              <SpeedAction>
+                <SpeedActionDynamics dynamicsDimension="time" dynamicsShape="step" value="0.0"/>
+                <SpeedActionTarget>
+                  <AbsoluteTargetSpeed value="5.0"/>
+                </SpeedActionTarget>
+              </SpeedAction>
+            </LongitudinalAction>
+          </PrivateAction>
+        </Private>
+      </Actions>
+    </Init>
+    <StopTrigger>
+      <ConditionGroup>
+        <Condition name="TimeOut" delay="0" conditionEdge="none">
+          <ByValueCondition>
+            <SimulationTimeCondition value="120.0" rule="greaterOrEqual"/>
+          </ByValueCondition>
+        </Condition>
+      </ConditionGroup>
+    </StopTrigger>
+  </Storyboard>
+</OpenSCENARIO>

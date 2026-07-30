@@ -1,0 +1,48 @@
+esmini GIT REV: N/A
+esmini GIT TAG: N/A
+esmini GIT BRANCH: N/A
+esmini BUILD VERSION: N/A - client build
+[] [info] Loaded config file: C:\Users\NgShuL_C\Downloads\esmini\esmini\config.yml (C:\Users\NgShuL_C\Downloads\esmini\esmini\bin\..\config.yml)
+[] [info] Loaded C:\Users\NgShuL_C\Downloads\esmini\esmini\Hello-World_coding-example\scenario.xosc
+[2026-07-30 11:06:11]
+[] [info] Player options: --osc C:\Users\NgShuL_C\Downloads\esmini\esmini\Hello-World_coding-example\scenario.xosc --camera_mode orbit --info_text 1 --logfile_path log.txt --log_level info --text_scale 1.0 --traj_filter 0.1 
+[] [info] No fixed timestep specified - running in realtime speed
+[] [info] Generated seed 3478518666
+[] [info] Loading C:/Users/NgShuL_C/Downloads/esmini/esmini/Hello-World_coding-example/scenario.xosc (v1.2)
+[] [info] 0 variables
+[] [info] Loaded OpenDRIVE: dummy_water.xodr
+[] [info] Non zero vehicle rear axle x offset: 5.00 found for Boat_Custom. Shift 3D model and adjust axles and bounding box accordingly.
+[] [info] 0 parameters
+[0.000] [info] Window created at 60,60 with size 800,400
+[0.000] [info] Generating a simplistic 3D model of the road network
+[0.000] [info] Init Ego TeleportAction initState -> startTransition -> runningState
+[0.000] [info] Starting teleport Action
+[0.000] [info] Ego New position:
+[0.000] [info] Pos(0.00, 0.00, 0.00) Rot(0.00, 0.00, 0.00) roadId 1 laneId -1 s 0.00 offset 50.00 t 0.00
+[0.000] [info] Init Ego LongitudinalAction initState -> startTransition -> runningState
+[0.000] [info] storyBoard initState -> startTransition -> runningState
+[0.000] [info] Init Ego TeleportAction runningState -> endTransition -> completeState
+[0.000] [info] Init Ego LongitudinalAction runningState -> endTransition -> completeState
+esmini initialized successfully.
+Waypoints: [(0.0, 0.0), (80.0, 0.0), (130.0, 50.0), (190.0, 50.0), (240.0, 0.0), (300.0, 0.0)]
+----------------------------------------------------------------------
+t=  0.0s | u=0.07m/s v=+0.00m/s r= +0.0dps | X=  -0.0 Y=  -0.0 hdg=  +0.0deg | ->WP1(80,0) dist=80.0m
+t=  1.0s | u=2.74m/s v=-0.00m/s r= +0.1dps | X=   1.3 Y=  -0.1 hdg=  +0.0deg | ->WP1(80,0) dist=78.7m
+t=  1.9s | u=3.86m/s v=-0.01m/s r= +0.2dps | X=   4.3 Y=  -0.2 hdg=  +0.2deg | ->WP1(80,0) dist=75.7m
+t=  2.9s | u=4.32m/s v=-0.02m/s r= +0.3dps | X=   8.0 Y=  -0.3 hdg=  +0.5deg | ->WP1(80,0) dist=72.0m
+t=  3.8s | u=4.51m/s v=-0.05m/s r= +0.4dps | X=  11.9 Y=  -0.4 hdg=  +0.8deg | ->WP1(80,0) dist=68.1m
+t=  4.8s | u=4.59m/s v=-0.07m/s r= +0.4dps | X=  16.0 Y=  -0.4 hdg=  +1.2deg | ->WP1(80,0) dist=64.0m
+t=  5.8s | u=4.62m/s v=-0.09m/s r= +0.4dps | X=  20.2 Y=  -0.5 hdg=  +1.6deg | ->WP1(80,0) dist=59.8m
+t=  6.7s | u=4.63m/s v=-0.11m/s r= +0.3dps | X=  24.4 Y=  -0.6 hdg=  +1.9deg | ->WP1(80,0) dist=55.6m
+t=  7.7s | u=4.64m/s v=-0.12m/s r= +0.3dps | X=  28.5 Y=  -0.6 hdg=  +2.2deg | ->WP1(80,0) dist=51.5m
+t=  8.6s | u=4.64m/s v=-0.13m/s r= +0.2dps | X=  32.7 Y=  -0.7 hdg=  +2.4deg | ->WP1(80,0) dist=47.3m
+t=  9.6s | u=4.64m/s v=-0.13m/s r= +0.1dps | X=  36.9 Y=  -0.7 hdg=  +2.5deg | ->WP1(80,0) dist=43.1m
+t= 10.6s | u=4.64m/s v=-0.13m/s r= +0.1dps | X=  41.1 Y=  -0.7 hdg=  +2.6deg | ->WP1(80,0) dist=38.9m
+t= 11.5s | u=4.64m/s v=-0.13m/s r= +0.0dps | X=  45.3 Y=  -0.7 hdg=  +2.7deg | ->WP1(80,0) dist=34.7m
+t= 12.5s | u=4.64m/s v=-0.12m/s r= +0.0dps | X=  49.5 Y=  -0.7 hdg=  +2.7deg | ->WP1(80,0) dist=30.5m
+t= 13.4s | u=4.64m/s v=-0.11m/s r= -0.0dps | X=  53.7 Y=  -0.7 hdg=  +2.7deg | ->WP1(80,0) dist=26.3m
+t= 14.4s | u=4.64m/s v=-0.11m/s r= -0.0dps | X=  57.8 Y=  -0.7 hdg=  +2.7deg | ->WP1(80,0) dist=22.2m
+t= 15.4s | u=4.64m/s v=-0.10m/s r= -0.1dps | X=  62.0 Y=  -0.7 hdg=  +2.6deg | ->WP1(80,0) dist=18.0m
+t= 16.3s | u=4.64m/s v=-0.09m/s r= -0.1dps | X=  66.2 Y=  -0.7 hdg=  +2.5deg | ->WP1(80,0) dist=13.8m
+t= 17.3s | u=4.64m/s v=-0.07m/s r= -0.1dps | X=  70.4 Y=  -0.7 hdg=  +2.4deg | ->WP1(80,0) dist=9.6m
+t= 18.2s | u=4.64m/s v=-0.15m/s r= +4.3dps | X=  74.6 Y=  -0.7 hdg=  +3.7deg | ->WP2(130,50) dist=75.1m
